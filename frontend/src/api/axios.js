@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-// Aquí apunta al servidor backend
+// Apunta al backend usando una variable de entorno.
+// Si no está definida (ej: en desarrollo local), usa localhost como respaldo.
 const api = axios.create({
-  baseURL: 'http://localhost:3001/api',
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001/api',
 });
 
 // Antes de cada petición, agrega el token automáticamente

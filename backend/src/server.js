@@ -4,11 +4,26 @@ require('dotenv').config();
 
 const app = express();
 
-// Permiten que el servidor entienda JSON
-// y que el frontend (React) pueda conectarse
+// Lista de dominios permitidos, separados por coma en el .env
+// Ejemplo en .env: ALLOWED_ORIGINS=https://kccfood.tudominio.com,https://www.kccfood.tudominio.com
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: '*',
-  credentials: false,
+  origin: function (origin, callback) {
+    // Permite peticiones sin origin (ej: Postman, apps móviles, curl)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.warn(`⚠️  Origen bloqueado por CORS: ${origin}`);
+    return callback(new Error('No permitido por CORS'));
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
