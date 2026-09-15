@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api from '../api/axios';
+import api, { IMAGE_BASE_URL } from '../api/axios';
 
 function Productos() {
   const [vista, setVista] = useState('productos');
@@ -81,7 +81,7 @@ function Productos() {
     if (producto) {
       setProductoEditando(producto);
       setFormProducto({ nombre: producto.nombre, categoria_id: producto.categoria_id || '', precio_costo: producto.precio_costo, precio_venta: producto.precio_venta, stock: producto.stock, stock_minimo: producto.stock_minimo });
-      setPreview(producto.imagen ? `http://localhost:3001${producto.imagen}` : null);
+      setPreview(producto.imagen ? `${IMAGE_BASE_URL}${producto.imagen}` : null);
     } else {
       setProductoEditando(null);
       setFormProducto({ nombre: '', categoria_id: '', precio_costo: '', precio_venta: '', stock: '', stock_minimo: '5' });
@@ -327,7 +327,7 @@ function Productos() {
                 {/* Imagen con altura fija */}
                 <div style={{ width: '100%', height: esCelular ? '130px' : '160px', background: '#f9f9f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {p.imagen
-                    ? <img src={`http://localhost:3001${p.imagen}`} alt={p.nombre} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '10px' }} />
+                    ? <img src={`${IMAGE_BASE_URL}${p.imagen}`} alt={p.nombre} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '10px' }} />
                     : <span style={{ fontSize: esCelular ? '40px' : '50px' }}>📦</span>
                   }
                 </div>
@@ -433,7 +433,7 @@ function Productos() {
                   : productosConReceta.map(p => (
                     <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', background: '#f9f9f9', borderRadius: '8px' }}>
                       {p.imagen
-                        ? <img src={`http://localhost:3001${p.imagen}`} alt={p.nombre} style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '8px' }} />
+                        ? <img src={`${IMAGE_BASE_URL}${p.imagen}`} alt={p.nombre} style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '8px' }} />
                         : <div style={{ width: '44px', height: '44px', fontSize: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f0f0', borderRadius: '8px' }}>🧋</div>
                       }
                       <div style={{ flex: 1 }}>

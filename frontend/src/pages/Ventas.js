@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api from '../api/axios';
+import api, { IMAGE_BASE_URL } from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 
 function Ventas() {
@@ -411,7 +411,7 @@ function Ventas() {
                   style={{ background: '#fff', borderRadius: '10px', padding: esCelular ? '10px 8px' : '10px 8px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.07)', cursor: p.stock === 0 ? 'not-allowed' : 'pointer', opacity: p.stock === 0 ? 0.4 : 1 }}
                   onClick={() => agregarAlCarrito(p)}>
                   {p.imagen
-                    ? <img src={`http://localhost:3001${p.imagen}`} alt={p.nombre} style={{ width: esCelular ? '70px' : '90px', height: esCelular ? '70px' : '90px', objectFit: 'contain', borderRadius: '8px', marginBottom: '6px' }} />
+                    ? <img src={`${IMAGE_BASE_URL}${p.imagen}`} alt={p.nombre} style={{ width: esCelular ? '70px' : '90px', height: esCelular ? '70px' : '90px', objectFit: 'contain', borderRadius: '8px', marginBottom: '6px' }} />
                     : <div style={{ width: esCelular ? '70px' : '90px', height: esCelular ? '70px' : '90px', fontSize: esCelular ? '28px' : '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f4f6f9', borderRadius: '8px', margin: '0 auto 6px' }}>🧋</div>
                   }
                   <div style={{ fontSize: esCelular ? '11px' : '12px', fontWeight: '600', color: '#1a1a2e', marginBottom: '3px', lineHeight: '1.3' }}>{p.nombre}</div>
