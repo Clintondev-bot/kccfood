@@ -39,6 +39,7 @@ app.use('/api/reportes',  require('./routes/reportes.routes'));
 app.use('/api/usuarios',  require('./routes/usuarios.routes'));
 app.use('/api/ingredientes', require('./routes/ingredientes.routes'));
 app.use('/api/compras',   require('./routes/compras.routes'));
+app.use('/api/clientes',  require('./routes/clientes.routes'));
 
 // Ruta de prueba — para verificar que el servidor funciona
 app.get('/api', (req, res) => {

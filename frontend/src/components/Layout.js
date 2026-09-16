@@ -21,6 +21,7 @@ function Layout({ children, paginaActual, setPagina }) {
     { id: 'ventas',    label: 'Ventas',       icono: '🛍️' },
     { id: 'productos', label: 'Productos',    icono: '📦' },
     { id: 'compras',   label: 'Compras',      icono: '🛒' },
+    { id: 'clientes',  label: 'Clientes',     icono: '👤' },
     { id: 'reportes',  label: 'Reportes',     icono: '📊' },
   ];
 

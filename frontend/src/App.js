@@ -9,6 +9,7 @@ import Ventas from './pages/Ventas';
 import Reportes from './pages/Reportes';
 import Usuarios from './pages/Usuarios';
 import Compras from './pages/Compras';
+import Clientes from './pages/Clientes';
 import Configuracion from './pages/Configuracion';
 
 function Contenido() {
@@ -29,6 +30,7 @@ function Contenido() {
       case 'ventas':        return <Ventas />;
       case 'productos':     return <Productos />;
       case 'compras':       return <Compras />;
+      case 'clientes':      return <Clientes />;
       case 'reportes':      return <Reportes />;
       case 'usuarios':      return <Usuarios />;
       case 'configuracion': return <Configuracion />;

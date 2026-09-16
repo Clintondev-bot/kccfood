@@ -9,6 +9,8 @@ function Ventas() {
   const [categorias, setCategorias] = useState([]);
   const [combos, setCombos] = useState([]);
   const [ventas, setVentas] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [clienteId, setClienteId] = useState('');
   const [carrito, setCarrito] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [busquedaVentas, setBusquedaVentas] = useState('');
@@ -52,14 +54,16 @@ function Ventas() {
 
   const cargarDatos = async () => {
     try {
-      const [p, c, v] = await Promise.all([
+      const [p, c, v, cl] = await Promise.all([
         api.get('/productos'),
         api.get('/productos/categorias'),
         api.get('/ventas'),
+        api.get('/clientes'),
       ]);
       setProductos(p.data);
       setCategorias(c.data);
       setVentas(v.data);
+      setClientes(cl.data);
       const combosGuardados = JSON.parse(localStorage.getItem('combos') || '[]');
       setCombos(combosGuardados);
     } catch (err) {
@@ -126,6 +130,10 @@ function Ventas() {
 
   const cobrar = async () => {
     if (carrito.length === 0) return;
+    if (!clienteId) {
+      setMensaje('❌ Selecciona un cliente antes de cobrar');
+      return;
+    }
     setProcesando(true);
     try {
       const itemsNormales = carrito.filter(i => !i.esCombo);
@@ -158,11 +166,13 @@ function Ventas() {
         metodo_pago: metodoPago,
         descuento: parseFloat(descuento) || 0,
         tipo_descuento: tipoDescuento,
+        cliente_id: parseInt(clienteId),
         items: itemsExpandidos,
       });
       setCarrito([]);
       setObservacion('');
       setDescuento('');
+      setClienteId('');
       setCarritoAbierto(false);
       setMensaje('✅ Venta registrada');
       cargarDatos();
@@ -188,6 +198,7 @@ function Ventas() {
     const hasta = fechaHasta ? new Date(fechaHasta + 'T23:59:59') : null;
     const coincideBusqueda = !busquedaVentas ||
       v.vendedor?.toLowerCase().includes(busquedaVentas.toLowerCase()) ||
+      v.cliente?.toLowerCase().includes(busquedaVentas.toLowerCase()) ||
       String(v.id).includes(busquedaVentas);
     const coincideDesde = !desde || fechaVenta >= desde;
     const coincideHasta = !hasta || fechaVenta <= hasta;
@@ -218,7 +229,7 @@ function Ventas() {
         <div style={{ flex: 1, overflowY: 'auto', padding: esCelular ? '12px' : '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ background: '#fff', borderRadius: '10px', padding: esCelular ? '12px' : '14px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)', display: 'flex', flexDirection: esCelular ? 'column' : 'row', gap: '10px' }}>
             <input style={{ flex: 1, padding: '8px 12px', border: '1px solid #e0e0e0', borderRadius: '8px', fontSize: '13px', outline: 'none' }}
-              placeholder="Buscar por # o vendedor..." value={busquedaVentas} onChange={e => setBusquedaVentas(e.target.value)} />
+              placeholder="Buscar por # , vendedor o cliente..." value={busquedaVentas} onChange={e => setBusquedaVentas(e.target.value)} />
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               <label style={{ fontSize: '12px', color: '#888', fontWeight: '600' }}>Desde:</label>
               <input type="date" style={{ padding: '7px 10px', border: '1px solid #e0e0e0', borderRadius: '8px', fontSize: '12px', outline: 'none' }} value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} />
@@ -257,7 +268,8 @@ function Ventas() {
                       {parseFloat(v.descuento) > 0 && (
                         <div style={{ fontSize: '11px', color: '#e53935', marginBottom: '4px' }}>🏷️ Descuento: S/ {parseFloat(v.descuento).toFixed(2)}</div>
                       )}
-                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>👤 {v.vendedor}</div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '2px' }}>👤 Vendedor: {v.vendedor}</div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>🙋 Cliente: {v.cliente}</div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontSize: '11px', color: '#aaa' }}>{new Date(v.creado_en).toLocaleString('es-PE')}</span>
                         <button style={{ padding: '5px 10px', background: '#f0f4ff', color: '#185FA5', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}
@@ -269,16 +281,17 @@ function Ventas() {
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
-                  <tr>{['# Venta', 'Vendedor', 'Método', 'Descuento', 'Total', 'Fecha', ''].map(h => (
+                  <tr>{['# Venta', 'Cliente', 'Vendedor', 'Método', 'Descuento', 'Total', 'Fecha', ''].map(h => (
                     <th key={h} style={{ textAlign: 'left', padding: '10px 14px', borderBottom: '2px solid #f0f0f0', color: '#888', fontWeight: '600', fontSize: '12px' }}>{h}</th>
                   ))}</tr>
                 </thead>
                 <tbody>
                   {ventasFiltradas.length === 0
-                    ? <tr><td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: '#aaa' }}>No hay ventas en este período</td></tr>
+                    ? <tr><td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: '#aaa' }}>No hay ventas en este período</td></tr>
                     : ventasFiltradas.map(v => (
                       <tr key={v.id}>
                         <td style={{ padding: '11px 14px', borderBottom: '1px solid #f5f5f5' }}><span style={{ background: '#f0f4ff', color: '#185FA5', padding: '3px 8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px' }}>#{v.id}</span></td>
+                        <td style={{ padding: '11px 14px', borderBottom: '1px solid #f5f5f5' }}>{v.cliente}</td>
                         <td style={{ padding: '11px 14px', borderBottom: '1px solid #f5f5f5' }}>{v.vendedor}</td>
                         <td style={{ padding: '11px 14px', borderBottom: '1px solid #f5f5f5' }}>{v.metodo_pago === 'efectivo' ? '💵' : v.metodo_pago === 'yape' ? '📱' : '💜'} {v.metodo_pago}</td>
                         <td style={{ padding: '11px 14px', borderBottom: '1px solid #f5f5f5', color: parseFloat(v.descuento) > 0 ? '#e53935' : '#aaa', fontWeight: parseFloat(v.descuento) > 0 ? '700' : '400' }}>
@@ -306,6 +319,7 @@ function Ventas() {
                 <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#1a1a2e' }}>Venta #{detalleVenta.id}</h3>
                 <button style={{ background: 'none', border: 'none', fontSize: '18px', color: '#aaa', cursor: 'pointer' }} onClick={() => setDetalleVenta(null)}>✕</button>
               </div>
+              <p style={{ fontSize: '13px', color: '#444', marginBottom: '6px' }}><strong>Cliente:</strong> {detalleVenta.cliente}</p>
               <p style={{ fontSize: '13px', color: '#444', marginBottom: '6px' }}><strong>Vendedor:</strong> {detalleVenta.vendedor}</p>
               <p style={{ fontSize: '13px', color: '#444', marginBottom: '6px' }}><strong>Método:</strong> {detalleVenta.metodo_pago}</p>
               <p style={{ fontSize: '13px', color: '#444', marginBottom: '14px' }}><strong>Fecha:</strong> {new Date(detalleVenta.creado_en).toLocaleString('es-PE')}</p>
@@ -430,6 +444,7 @@ function Ventas() {
             metodoPago={metodoPago} setMetodoPago={setMetodoPago}
             descuento={descuento} setDescuento={setDescuento}
             tipoDescuento={tipoDescuento} setTipoDescuento={setTipoDescuento}
+            clientes={clientes} clienteId={clienteId} setClienteId={setClienteId}
             subtotal={subtotal} montoDescuento={montoDescuento} total={total}
             cobrar={cobrar} procesando={procesando} mensaje={mensaje} ancho={ancho} />
         )}
@@ -450,6 +465,7 @@ function Ventas() {
               metodoPago={metodoPago} setMetodoPago={setMetodoPago}
               descuento={descuento} setDescuento={setDescuento}
               tipoDescuento={tipoDescuento} setTipoDescuento={setTipoDescuento}
+              clientes={clientes} clienteId={clienteId} setClienteId={setClienteId}
               subtotal={subtotal} montoDescuento={montoDescuento} total={total}
               cobrar={cobrar} procesando={procesando} mensaje={mensaje} ancho={ancho} esCelular={true} />
           </div>
@@ -466,7 +482,7 @@ function Ventas() {
   );
 }
 
-function CarritoPanel({ carrito, cambiarCantidad, setCarrito, observacion, setObservacion, metodoPago, setMetodoPago, descuento, setDescuento, tipoDescuento, setTipoDescuento, subtotal, montoDescuento, total, cobrar, procesando, mensaje, ancho, esCelular }) {
+function CarritoPanel({ carrito, cambiarCantidad, setCarrito, observacion, setObservacion, metodoPago, setMetodoPago, descuento, setDescuento, tipoDescuento, setTipoDescuento, clientes, clienteId, setClienteId, subtotal, montoDescuento, total, cobrar, procesando, mensaje, ancho, esCelular }) {
   return (
     <div style={{ width: esCelular ? '100%' : ancho < 1024 ? '280px' : '300px', minWidth: esCelular ? 'auto' : '280px', background: '#fff', display: 'flex', flexDirection: 'column', borderLeft: esCelular ? 'none' : '1px solid #ececec', maxHeight: esCelular ? '90vh' : 'auto' }}>
       {!esCelular && (
@@ -475,6 +491,19 @@ function CarritoPanel({ carrito, cambiarCantidad, setCarrito, observacion, setOb
           {carrito.length > 0 && <span style={{ background: '#e53935', color: '#fff', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}>{carrito.length}</span>}
         </div>
       )}
+
+      {/* CLIENTE */}
+      <div style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0' }}>
+        <label style={{ fontSize: '11px', fontWeight: '700', color: '#888', display: 'block', marginBottom: '6px', letterSpacing: '0.05em' }}>🙋 CLIENTE</label>
+        <select
+          style={{ width: '100%', padding: '8px 10px', border: '1px solid #e0e0e0', borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#fff', cursor: 'pointer' }}
+          value={clienteId} onChange={e => setClienteId(e.target.value)}>
+          <option value="">Seleccionar cliente</option>
+          {clientes.map(c => (
+            <option key={c.id} value={c.id}>{c.nombre}</option>
+          ))}
+        </select>
+      </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
         {carrito.length === 0

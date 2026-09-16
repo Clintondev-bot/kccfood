@@ -4,9 +4,10 @@ const listar = async (req, res) => {
   try {
     const { fecha } = req.query;
     let query = `
-      SELECT v.*, u.nombre AS vendedor
+      SELECT v.*, u.nombre AS vendedor, c.nombre AS cliente
       FROM ventas v
       JOIN usuarios u ON v.usuario_id = u.id
+      JOIN clientes c ON v.cliente_id = c.id
       WHERE 1=1
     `;
     const params = [];
@@ -24,7 +25,12 @@ const listar = async (req, res) => {
 
 const obtener = async (req, res) => {
   try {
-    const [venta] = await db.query('SELECT * FROM ventas WHERE id = ?', [req.params.id]);
+    const [venta] = await db.query(`
+      SELECT v.*, c.nombre AS cliente
+      FROM ventas v
+      JOIN clientes c ON v.cliente_id = c.id
+      WHERE v.id = ?
+    `, [req.params.id]);
     if (!venta.length) return res.status(404).json({ error: 'Venta no encontrada' });
     const [detalle] = await db.query(`
       SELECT d.*, p.nombre AS producto
@@ -41,10 +47,13 @@ const obtener = async (req, res) => {
 const crear = async (req, res) => {
   const conn = await db.getConnection();
   try {
-    const { items, metodo_pago, descuento = 0, tipo_descuento = 'monto' } = req.body;
+    const { items, metodo_pago, descuento = 0, tipo_descuento = 'monto', cliente_id } = req.body;
 
     if (!items || items.length === 0) {
       return res.status(400).json({ error: 'La venta debe tener al menos un producto' });
+    }
+    if (!cliente_id) {
+      return res.status(400).json({ error: 'Debes seleccionar un cliente' });
     }
 
     await conn.beginTransaction();
@@ -70,9 +79,9 @@ const crear = async (req, res) => {
     const total = subtotal - montoDescuento;
 
     const [venta] = await conn.query(
-      `INSERT INTO ventas (usuario_id, total, metodo_pago, descuento, tipo_descuento)
-       VALUES (?, ?, ?, ?, ?)`,
-      [req.usuario.id, total, metodo_pago || 'efectivo', montoDescuento, tipo_descuento]
+      `INSERT INTO ventas (usuario_id, cliente_id, total, metodo_pago, descuento, tipo_descuento)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [req.usuario.id, cliente_id, total, metodo_pago || 'efectivo', montoDescuento, tipo_descuento]
     );
     const ventaId = venta.insertId;
 
