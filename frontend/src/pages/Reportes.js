@@ -10,30 +10,38 @@ function Reportes() {
   const [topProductos, setTopProductos] = useState([]);
   const [ventas, setVentas] = useState([]);
   const [productos, setProductos] = useState([]);
-  const [grafico, setGrafico] = useState([]);
   const [periodo, setPeriodo] = useState('semanal');
+  const [periodoTop, setPeriodoTop] = useState('diario');
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => { cargarDatos(); }, [fecha]);
+  useEffect(() => { cargarTopProductos(); }, [fecha, periodoTop]);
 
   const cargarDatos = async () => {
     setCargando(true);
     try {
-      const [r, p, v, prods] = await Promise.all([
+      const [r, v, prods] = await Promise.all([
         api.get(`/reportes/resumen?fecha=${fecha}`),
-        api.get(`/reportes/productos-mas-vendidos?fecha=${fecha}`),
         api.get('/ventas'),
         api.get('/productos'),
       ]);
       setResumen(r.data);
-      setTopProductos(p.data);
       setVentas(v.data);
       setProductos(prods.data);
     } catch (err) {
       console.error(err);
     } finally {
       setCargando(false);
+    }
+  };
+
+  const cargarTopProductos = async () => {
+    try {
+      const { data } = await api.get(`/reportes/productos-mas-vendidos?fecha=${fecha}&periodo=${periodoTop}`);
+      setTopProductos(data);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -105,6 +113,13 @@ function Reportes() {
   };
 
   const stockBajo = productos.filter(p => p.stock <= p.stock_minimo);
+
+  const etiquetaPeriodoTop = {
+    diario: 'hoy',
+    semanal: 'esta semana',
+    mensual: 'este mes',
+    anual: 'este año',
+  }[periodoTop];
 
   if (cargando) return <p style={{ padding: '20px' }}>Cargando...</p>;
 
@@ -215,9 +230,22 @@ function Reportes() {
 
           {/* PRODUCTOS MÁS VENDIDOS */}
           <div style={styles.card}>
-            <h3 style={styles.cardTitulo}>Productos más vendidos hoy</h3>
+            <div style={styles.cardHeaderFlex}>
+              <h3 style={styles.cardTitulo}>Productos más vendidos ({etiquetaPeriodoTop})</h3>
+              <div style={styles.filtros}>
+                {['diario', 'semanal', 'mensual', 'anual'].map(p => (
+                  <button
+                    key={p}
+                    style={{ ...styles.btnFiltro, ...(periodoTop === p ? styles.btnFiltroActivo : {}) }}
+                    onClick={() => setPeriodoTop(p)}
+                  >
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
             {topProductos.length === 0 ? (
-              <p style={styles.sinDatos}>No hay ventas en esta fecha</p>
+              <p style={styles.sinDatos}>No hay ventas en este período</p>
             ) : (
               <table style={styles.tabla}>
                 <thead>
@@ -319,7 +347,7 @@ const styles = {
   metricaValor: { fontSize: '22px', fontWeight: '700', color: '#1a1a2e', marginBottom: '4px' },
   metricaLabel: { fontSize: '12px', color: '#888' },
   card: { background: '#fff', borderRadius: '10px', padding: '18px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' },
-  cardHeaderFlex: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' },
+  cardHeaderFlex: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' },
   cardTitulo: { fontSize: '14px', fontWeight: '700', color: '#1a1a2e' },
   filtros: { display: 'flex', gap: '6px' },
   btnFiltro: { padding: '5px 12px', borderRadius: '20px', border: '1px solid #e0e0e0', background: '#fff', fontSize: '12px', color: '#888', cursor: 'pointer' },
