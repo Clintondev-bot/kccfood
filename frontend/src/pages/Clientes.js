@@ -9,6 +9,8 @@ function Clientes() {
   const [form, setForm] = useState({ nombre: '', descripcion: '' });
   const [error, setError] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [historial, setHistorial] = useState(null);
+  const [clienteHistorial, setClienteHistorial] = useState(null);
 
   useEffect(() => { cargarClientes(); }, []);
 
@@ -67,6 +69,21 @@ function Clientes() {
     }
   };
 
+  const verHistorial = async (cliente) => {
+    setClienteHistorial(cliente);
+    try {
+      const { data } = await api.get(`/clientes/${cliente.id}/compras`);
+      setHistorial(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const cerrarHistorial = () => {
+    setHistorial(null);
+    setClienteHistorial(null);
+  };
+
   const clientesFiltrados = clientes.filter(c =>
     c.nombre.toLowerCase().includes(busqueda.toLowerCase())
   );
@@ -98,6 +115,8 @@ function Clientes() {
                   <th style={styles.th}>ID</th>
                   <th style={styles.th}>Nombre</th>
                   <th style={styles.th}>Descripción</th>
+                  <th style={styles.th}>Compras</th>
+                  <th style={styles.th}>Total gastado</th>
                   <th style={styles.th}></th>
                 </tr>
               </thead>
@@ -109,8 +128,13 @@ function Clientes() {
                     </td>
                     <td style={{ ...styles.td, fontWeight: '600' }}>{c.nombre}</td>
                     <td style={{ ...styles.td, color: '#888' }}>{c.descripcion || '—'}</td>
+                    <td style={styles.td}>{c.total_compras}</td>
+                    <td style={{ ...styles.td, fontWeight: '700', color: '#2e7d32' }}>
+                      S/ {parseFloat(c.total_gastado).toFixed(2)}
+                    </td>
                     <td style={styles.td}>
-                      <button style={styles.btnEditar} onClick={() => abrirModal(c)}>✏️ Editar</button>
+                      <button style={styles.btnVer} onClick={() => verHistorial(c)}>📋 Compras</button>
+                      <button style={styles.btnEditar} onClick={() => abrirModal(c)}>✏️</button>
                       <button style={styles.btnEliminar} onClick={() => eliminarCliente(c.id)}>🗑️</button>
                     </td>
                   </tr>
@@ -121,6 +145,7 @@ function Clientes() {
         </div>
       </div>
 
+      {/* MODAL NUEVO/EDITAR */}
       {modalAbierto && (
         <div style={styles.modalFondo} onClick={cerrarModal}>
           <div style={styles.modal} onClick={e => e.stopPropagation()}>
@@ -156,6 +181,46 @@ function Clientes() {
           </div>
         </div>
       )}
+
+      {/* MODAL HISTORIAL DE COMPRAS */}
+      {clienteHistorial && (
+        <div style={styles.modalFondo} onClick={cerrarHistorial}>
+          <div style={{ ...styles.modal, maxWidth: '560px' }} onClick={e => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitulo}>Historial de {clienteHistorial.nombre}</h3>
+              <button style={styles.btnCerrar} onClick={cerrarHistorial}>✕</button>
+            </div>
+            {historial === null ? (
+              <p style={styles.sinDatos}>Cargando...</p>
+            ) : historial.length === 0 ? (
+              <p style={styles.sinDatos}>Este cliente aún no tiene compras registradas</p>
+            ) : (
+              <table style={styles.tabla}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>#</th>
+                    <th style={styles.th}>Vendedor</th>
+                    <th style={styles.th}>Método</th>
+                    <th style={styles.th}>Total</th>
+                    <th style={styles.th}>Fecha</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historial.map(v => (
+                    <tr key={v.id}>
+                      <td style={styles.td}><span style={styles.badge}>#{v.id}</span></td>
+                      <td style={styles.td}>{v.vendedor}</td>
+                      <td style={styles.td}>{v.metodo_pago}</td>
+                      <td style={{ ...styles.td, fontWeight: '700', color: '#2e7d32' }}>S/ {parseFloat(v.total).toFixed(2)}</td>
+                      <td style={{ ...styles.td, color: '#888', fontSize: '12px' }}>{new Date(v.creado_en).toLocaleString('es-PE')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -167,16 +232,17 @@ const styles = {
   btnNuevo: { padding: '8px 18px', background: '#1a1a2e', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' },
   body: { flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' },
   buscador: { padding: '10px 14px', border: '1px solid #e0e0e0', borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#fff' },
-  card: { background: '#fff', borderRadius: '10px', padding: '18px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' },
+  card: { background: '#fff', borderRadius: '10px', padding: '18px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)', overflowX: 'auto' },
   sinDatos: { color: '#aaa', fontSize: '13px', textAlign: 'center', padding: '20px 0' },
   tabla: { width: '100%', borderCollapse: 'collapse', fontSize: '13px' },
-  th: { textAlign: 'left', padding: '8px 10px', borderBottom: '2px solid #f0f0f0', color: '#888', fontWeight: '600', fontSize: '12px' },
-  td: { padding: '10px', borderBottom: '1px solid #f5f5f5', color: '#333' },
+  th: { textAlign: 'left', padding: '8px 10px', borderBottom: '2px solid #f0f0f0', color: '#888', fontWeight: '600', fontSize: '12px', whiteSpace: 'nowrap' },
+  td: { padding: '10px', borderBottom: '1px solid #f5f5f5', color: '#333', whiteSpace: 'nowrap' },
   badge: { background: '#f0f4ff', color: '#185FA5', padding: '3px 8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px' },
+  btnVer: { padding: '5px 10px', background: '#eafbea', color: '#2e7d32', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', marginRight: '6px' },
   btnEditar: { padding: '5px 10px', background: '#f0f4ff', color: '#185FA5', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', marginRight: '6px' },
   btnEliminar: { padding: '5px 10px', background: '#ffeaea', color: '#e53935', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' },
   modalFondo: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
-  modal: { background: '#fff', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '420px' },
+  modal: { background: '#fff', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '420px', maxHeight: '90vh', overflowY: 'auto' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
   modalTitulo: { fontSize: '17px', fontWeight: '700', color: '#1a1a2e' },
   btnCerrar: { background: 'none', border: 'none', fontSize: '18px', color: '#aaa', cursor: 'pointer' },
