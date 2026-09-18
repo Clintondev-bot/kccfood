@@ -12,7 +12,7 @@ const listar = async (req, res) => {
       FROM clientes c
       LEFT JOIN ventas v ON v.cliente_id = c.id
       GROUP BY c.id
-      ORDER BY c.nombre ASC
+      ORDER BY c.id DESC
     `);
     res.json(rows);
   } catch (err) {
