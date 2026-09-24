@@ -161,8 +161,8 @@ function Reportes() {
           </div>
           <div style={styles.metrica}>
             <div style={styles.metricaIcono}>📱</div>
-            <div style={styles.metricaValor}>S/ {parseFloat((resumen?.yape || 0) + (resumen?.plin || 0)).toFixed(2)}</div>
-            <div style={styles.metricaLabel}>Yape / Plin</div>
+            <div style={styles.metricaValor}>S/ {parseFloat(resumen?.yape || 0).toFixed(2)}</div>
+            <div style={styles.metricaLabel}>Yape</div>
           </div>
         </div>
 
@@ -284,7 +284,6 @@ function Reportes() {
             {[
               { label: 'Efectivo', valor: resumen?.efectivo || 0, color: '#2e7d32', icono: '💵' },
               { label: 'Yape',     valor: resumen?.yape || 0,     color: '#7b1fa2', icono: '📱' },
-              { label: 'Plin',     valor: resumen?.plin || 0,     color: '#0288d1', icono: '💜' },
             ].map(m => {
               const totalDia = parseFloat(resumen?.total_dinero || 1);
               const pct = Math.round((parseFloat(m.valor) / totalDia) * 100) || 0;

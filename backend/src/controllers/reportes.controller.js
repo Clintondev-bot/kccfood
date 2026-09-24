@@ -11,8 +11,7 @@ const resumenDia = async (req, res) => {
         COUNT(*) AS total_ventas,
         SUM(total) AS total_dinero,
         SUM(CASE WHEN metodo_pago = 'efectivo' THEN total ELSE 0 END) AS efectivo,
-        SUM(CASE WHEN metodo_pago = 'yape'     THEN total ELSE 0 END) AS yape,
-        SUM(CASE WHEN metodo_pago = 'plin'     THEN total ELSE 0 END) AS plin
+        SUM(CASE WHEN metodo_pago = 'yape'     THEN total ELSE 0 END) AS yape
       FROM ventas
       WHERE DATE(creado_en) = ? 
     `, [fecha]);

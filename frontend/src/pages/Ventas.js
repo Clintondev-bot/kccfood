@@ -572,7 +572,7 @@ function CarritoPanel({ carrito, cambiarCantidad, setCarrito, observacion, setOb
 
       {/* MÉTODOS DE PAGO */}
       <div style={{ display: 'flex', gap: '6px', padding: '8px 12px' }}>
-        {[{ id: 'efectivo', label: 'EFECTIVO', icono: '💵' }, { id: 'yape', label: 'YAPE', icono: '📱' }, { id: 'plin', label: 'PLIN', icono: '💜' }].map(m => (
+        {[{ id: 'efectivo', label: 'EFECTIVO', icono: '💵' }, { id: 'yape', label: 'YAPE', icono: '📱' }].map(m => (
           <button key={m.id}
             style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', padding: '8px 4px', border: '1px solid #e0e0e0', borderRadius: '8px', background: metodoPago === m.id ? '#1a1a2e' : '#f9f9f9', color: metodoPago === m.id ? '#fff' : '#666', cursor: 'pointer', fontSize: '10px', fontWeight: '700' }}
             onClick={() => setMetodoPago(m.id)}>
