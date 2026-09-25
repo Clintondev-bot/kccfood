@@ -8,9 +8,10 @@ const api = axios.create({
   baseURL: API_URL,
 });
 
-// URL base del backend SIN el "/api" al final, para usar con archivos
-// estáticos como las imágenes de productos (ej: /uploads/productos/foto.png)
-export const IMAGE_BASE_URL = API_URL.replace(/\/api\/?$/, '');
+// URL base completa (incluye /api) — se usa para armar la ruta de las
+// imágenes de productos, que ahora se sirven desde el propio backend
+// como /productos/:id/imagen
+export const API_BASE_URL = API_URL;
 
 // Antes de cada petición, agrega el token automáticamente
 // Así no tienes que ponerlo a mano en cada llamada

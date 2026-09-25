@@ -1,19 +1,10 @@
 const db = require('../config/db');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 
-// Configuración de multer — define cómo y dónde guardar las imágenes
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'src/uploads/productos/');
-  },
-  filename: (req, file, cb) => {
-    // Nombre único para evitar que se sobreescriban imágenes
-    const nombre = Date.now() + path.extname(file.originalname);
-    cb(null, nombre);
-  }
-});
+// Multer en MEMORIA (no en disco): así la imagen nunca depende de archivos
+// físicos que se pierden en cada redeploy — se guarda directo en la BD.
+const storage = multer.memoryStorage();
 
 // Solo aceptamos imágenes
 const fileFilter = (req, file, cb) => {
@@ -26,10 +17,14 @@ const upload = multer({ storage, fileFilter, limits: { fileSize: 2 * 1024 * 1024
 // límite de 2MB por imagen
 
 // GET /api/productos
+// OJO: nunca traemos imagen_datos aquí (pesaría mucho la lista completa),
+// solo la ruta corta en "imagen" que apunta al endpoint que sirve la imagen.
 const listar = async (req, res) => {
   try {
     const [rows] = await db.query(`
-      SELECT p.*, c.nombre AS categoria
+      SELECT p.id, p.nombre, p.categoria_id, p.precio_costo, p.precio_venta,
+             p.stock, p.stock_minimo, p.activo, p.creado_en, p.imagen,
+             c.nombre AS categoria
       FROM productos p
       LEFT JOIN categorias c ON p.categoria_id = c.id
       WHERE p.activo = TRUE
@@ -66,6 +61,25 @@ const stockBajo = async (req, res) => {
   }
 };
 
+// GET /api/productos/:id/imagen
+// Sirve la imagen directo desde la base de datos, como si fuera un archivo normal.
+const obtenerImagen = async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      'SELECT imagen_datos, imagen_tipo FROM productos WHERE id = ?',
+      [req.params.id]
+    );
+    if (!rows.length || !rows[0].imagen_datos) {
+      return res.status(404).send('Imagen no encontrada');
+    }
+    res.set('Content-Type', rows[0].imagen_tipo || 'image/png');
+    res.set('Cache-Control', 'public, max-age=31536000'); // el navegador la cachea 1 año
+    res.send(rows[0].imagen_datos);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // POST /api/productos — crear producto con imagen opcional
 const crear = async (req, res) => {
   try {
@@ -75,17 +89,24 @@ const crear = async (req, res) => {
       return res.status(400).json({ error: 'Nombre y precio de venta son requeridos' });
     }
 
-    // Si se subió una imagen, guardamos la ruta. Si no, null
-    const imagen = req.file ? `/uploads/productos/${req.file.filename}` : null;
-
     const [result] = await db.query(
       `INSERT INTO productos 
-        (nombre, categoria_id, precio_costo, precio_venta, stock, stock_minimo, imagen)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [nombre, categoria_id, precio_costo || 0, precio_venta, stock || 0, stock_minimo || 5, imagen]
+        (nombre, categoria_id, precio_costo, precio_venta, stock, stock_minimo)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [nombre, categoria_id, precio_costo || 0, precio_venta, stock || 0, stock_minimo || 5]
     );
+    const id = result.insertId;
 
-    res.status(201).json({ id: result.insertId, mensaje: 'Producto creado correctamente' });
+    // Si se subió una imagen, la guardamos en la BD y armamos su ruta de acceso
+    if (req.file) {
+      const rutaImagen = `/productos/${id}/imagen`;
+      await db.query(
+        'UPDATE productos SET imagen = ?, imagen_datos = ?, imagen_tipo = ? WHERE id = ?',
+        [rutaImagen, req.file.buffer, req.file.mimetype, id]
+      );
+    }
+
+    res.status(201).json({ id, mensaje: 'Producto creado correctamente' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -95,27 +116,20 @@ const crear = async (req, res) => {
 const editar = async (req, res) => {
   try {
     const { nombre, categoria_id, precio_costo, precio_venta, stock_minimo } = req.body;
+    const id = req.params.id;
 
-    // Si se sube nueva imagen, borramos la anterior para no acumular archivos
+    const campos = ['nombre = ?', 'categoria_id = ?', 'precio_costo = ?', 'precio_venta = ?', 'stock_minimo = ?'];
+    const valores = [nombre, categoria_id, precio_costo, precio_venta, stock_minimo];
+
+    // Si se sube una imagen nueva, la reemplazamos (ya no hay que borrar archivos del disco)
     if (req.file) {
-      const [prod] = await db.query('SELECT imagen FROM productos WHERE id = ?', [req.params.id]);
-      if (prod[0]?.imagen) {
-        const rutaAnterior = path.join(__dirname, '../../', prod[0].imagen);
-        if (fs.existsSync(rutaAnterior)) fs.unlinkSync(rutaAnterior);
-      }
+      campos.push('imagen = ?', 'imagen_datos = ?', 'imagen_tipo = ?');
+      valores.push(`/productos/${id}/imagen`, req.file.buffer, req.file.mimetype);
     }
 
-    const imagen = req.file ? `/uploads/productos/${req.file.filename}` : undefined;
+    valores.push(id);
 
-    await db.query(
-      `UPDATE productos 
-       SET nombre = ?, categoria_id = ?, precio_costo = ?, precio_venta = ?, stock_minimo = ?
-       ${imagen !== undefined ? ', imagen = ?' : ''}
-       WHERE id = ?`,
-      imagen !== undefined
-        ? [nombre, categoria_id, precio_costo, precio_venta, stock_minimo, imagen, req.params.id]
-        : [nombre, categoria_id, precio_costo, precio_venta, stock_minimo, req.params.id]
-    );
+    await db.query(`UPDATE productos SET ${campos.join(', ')} WHERE id = ?`, valores);
 
     res.json({ mensaje: 'Producto actualizado correctamente' });
   } catch (err) {
@@ -133,4 +147,4 @@ const eliminar = async (req, res) => {
   }
 };
 
-module.exports = { upload, listar, listarCategorias, stockBajo, crear, editar, eliminar };
+module.exports = { upload, listar, listarCategorias, stockBajo, obtenerImagen, crear, editar, eliminar };
