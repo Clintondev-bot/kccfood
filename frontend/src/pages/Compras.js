@@ -9,6 +9,7 @@ function Compras() {
   const [detalle, setDetalle] = useState(null);
   const [error, setError] = useState('');
   const [exito, setExito] = useState('');
+  const [guardando, setGuardando] = useState(false);
 
   const [form, setForm] = useState({
     proveedor: '',
@@ -57,8 +58,7 @@ function Compras() {
   };
 
   const actualizarItem = (index, campo, valor) => {
-    const nuevos = [...items];
-    nuevos[index][campo] = valor;
+    const nuevos = items.map((it, i) => (i === index ? { ...it, [campo]: valor } : it));
 
     // Si cambia el producto, auto-completamos el precio de costo
     if (campo === 'producto_id') {
@@ -81,6 +81,8 @@ function Compras() {
       return;
     }
 
+    if (guardando) return; // evita registrar la misma compra dos veces
+    setGuardando(true);
     try {
       await api.post('/compras', {
         proveedor: form.proveedor,
@@ -97,6 +99,8 @@ function Compras() {
       cargarDatos();
     } catch (err) {
       setError(err.response?.data?.error || 'Error al registrar');
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -286,8 +290,8 @@ function Compras() {
                 <button type="button" style={styles.btnCancelar} onClick={cerrarModal}>
                   Cancelar
                 </button>
-                <button type="submit" style={styles.btnGuardar}>
-                  Registrar compra
+                <button type="submit" style={{ ...styles.btnGuardar, opacity: guardando ? 0.6 : 1 }} disabled={guardando}>
+                  {guardando ? 'Guardando...' : 'Registrar compra'}
                 </button>
               </div>
             </form>
@@ -346,30 +350,30 @@ const styles = {
   btnNuevo: { padding: '8px 18px', background: '#1a1a2e', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' },
   exito: { background: '#eafbea', color: '#2e7d32', padding: '10px 20px', fontSize: '13px', fontWeight: '600' },
   body: { flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' },
-  grid3: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' },
+  grid3: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' },
   metrica: { background: '#fff', borderRadius: '10px', padding: '18px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)', textAlign: 'center' },
   metricaIcono: { fontSize: '24px', marginBottom: '8px' },
   metricaValor: { fontSize: '22px', fontWeight: '700', color: '#1a1a2e', marginBottom: '4px' },
   metricaLabel: { fontSize: '12px', color: '#888' },
-  card: { background: '#fff', borderRadius: '10px', padding: '18px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' },
+  card: { background: '#fff', borderRadius: '10px', padding: '18px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)', overflowX: 'auto' },
   cardTitulo: { fontSize: '14px', fontWeight: '700', color: '#1a1a2e', marginBottom: '16px' },
   sinDatos: { color: '#aaa', fontSize: '13px', textAlign: 'center', padding: '20px 0' },
   tabla: { width: '100%', borderCollapse: 'collapse', fontSize: '13px' },
   th: { textAlign: 'left', padding: '8px 10px', borderBottom: '2px solid #f0f0f0', color: '#888', fontWeight: '600', fontSize: '12px' },
   td: { padding: '10px', borderBottom: '1px solid #f5f5f5', color: '#333' },
   btnVer: { padding: '5px 12px', background: '#f0f4ff', color: '#185FA5', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' },
-  modalFondo: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
+  modalFondo: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '12px' },
   modal: { background: '#fff', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
   modalTitulo: { fontSize: '17px', fontWeight: '700', color: '#1a1a2e' },
   btnCerrar: { background: 'none', border: 'none', fontSize: '18px', color: '#aaa', cursor: 'pointer' },
-  fila: { display: 'flex', gap: '12px' },
-  campo: { flex: 1, marginBottom: '14px' },
+  fila: { display: 'flex', flexWrap: 'wrap', gap: '12px' },
+  campo: { flex: '1 1 200px', marginBottom: '14px' },
   label: { display: 'block', fontSize: '12px', fontWeight: '600', color: '#444', marginBottom: '5px' },
   input: { width: '100%', padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: '8px', fontSize: '13px', outline: 'none' },
   itemsHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' },
   btnAgregar: { padding: '5px 12px', background: '#e3f0fb', color: '#185FA5', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' },
-  itemFila: { display: 'flex', gap: '8px', alignItems: 'flex-end', marginBottom: '10px', padding: '10px', background: '#f9f9f9', borderRadius: '8px' },
+  itemFila: { display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-end', marginBottom: '10px', padding: '10px', background: '#f9f9f9', borderRadius: '8px' },
   itemCampo: { display: 'flex', flexDirection: 'column', gap: '4px' },
   labelPeq: { fontSize: '11px', color: '#888', fontWeight: '600' },
   inputPeq: { width: '80px', padding: '7px 8px', border: '1px solid #e0e0e0', borderRadius: '6px', fontSize: '13px', outline: 'none' },

@@ -9,7 +9,7 @@ router.post('/',             soloAdmin,  ctrl.crear);
 router.put('/:id',           soloAdmin,  ctrl.editar);
 router.delete('/:id',        soloAdmin,  ctrl.eliminar);
 router.get('/receta/:producto_id',       ctrl.obtenerReceta);
-router.post('/receta/:producto_id',      ctrl.guardarReceta);
+router.post('/receta/:producto_id', soloAdmin,  ctrl.guardarReceta); // antes cualquier vendedor podía cambiar recetas
 router.post('/ajuste',       soloAdmin,  ctrl.ajustarStock);
 
 module.exports = router;

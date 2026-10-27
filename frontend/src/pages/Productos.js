@@ -114,8 +114,12 @@ function Productos() {
 
   const eliminarProducto = async (id) => {
     if (!window.confirm('¿Eliminar este producto?')) return;
-    await api.delete(`/productos/${id}`);
-    cargarDatos();
+    try {
+      await api.delete(`/productos/${id}`);
+      cargarDatos();
+    } catch (err) {
+      alert(err.response?.data?.error || 'No se pudo eliminar el producto');
+    }
   };
 
   // ── INGREDIENTES ──
@@ -150,12 +154,17 @@ function Productos() {
 
   const eliminarIngrediente = async (id) => {
     if (!window.confirm('¿Eliminar este ingrediente?')) return;
-    await api.delete(`/ingredientes/${id}`);
-    cargarDatos();
+    try {
+      await api.delete(`/ingredientes/${id}`);
+      cargarDatos();
+    } catch (err) {
+      alert(err.response?.data?.error || 'No se pudo eliminar el ingrediente');
+    }
   };
 
   const abrirAjuste = (ingrediente) => {
     setAjusteForm({ id: ingrediente.id, tipo: 'entrada', cantidad: 0 });
+    setError('');
     setModalAjuste(true);
   };
 
@@ -173,6 +182,7 @@ function Productos() {
   // ── RECETAS ──
   const abrirReceta = async (producto) => {
     setProductoReceta(producto);
+    setError('');
     try {
       const { data } = await api.get(`/ingredientes/receta/${producto.id}`);
       setRecetaItems(data.length > 0
@@ -225,6 +235,15 @@ function Productos() {
     });
 
     const precioNormal = productosDelCombo.reduce((s, i) => s + (i.precio_unit * i.cantidad), 0);
+    const precioCombo = parseFloat(formCombo.precio);
+    if (!(precioCombo >= 0)) {
+      setError('Ingresa un precio válido para el combo');
+      return;
+    }
+    if (productosDelCombo.some(i => !(i.cantidad > 0))) {
+      setError('Las cantidades deben ser mayores a 0');
+      return;
+    }
     const nuevoCombo = {
       id: comboEditando ? comboEditando.id : Date.now(),
       nombre: formCombo.nombre,
@@ -587,6 +606,7 @@ function Productos() {
               </select>
             </div>
             <div style={s.campo}><label style={s.label}>Cantidad</label><input style={s.input} type="number" step="0.01" min="0" value={ajusteForm.cantidad} onChange={e => setAjusteForm({ ...ajusteForm, cantidad: e.target.value })} /></div>
+            {error && <p style={{ color: '#e53935', fontSize: '13px', marginBottom: '12px' }}>{error}</p>}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button style={s.btnCancelar} onClick={() => setModalAjuste(false)}>Cancelar</button>
               <button style={s.btnGuardar} onClick={guardarAjuste}>Aplicar</button>
@@ -615,6 +635,7 @@ function Productos() {
               </div>
             ))}
             <button style={{ padding: '7px 14px', background: '#e3f0fb', color: '#185FA5', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', marginBottom: '16px' }} onClick={() => setRecetaItems([...recetaItems, { ingrediente_id: '', cantidad: 0 }])}>+ Agregar ingrediente</button>
+            {error && <p style={{ color: '#e53935', fontSize: '13px', marginBottom: '12px' }}>{error}</p>}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button style={s.btnCancelar} onClick={() => setModalReceta(false)}>Cancelar</button>
               <button style={s.btnGuardar} onClick={guardarReceta}>Guardar receta</button>

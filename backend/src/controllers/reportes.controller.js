@@ -1,10 +1,12 @@
 const db = require('../config/db');
+const { hoyLima, esFechaValida } = require('../utils/helpers');
 
 // GET /api/reportes/resumen?fecha=2024-06-16
 // Resumen del día: total vendido, número de ventas, método de pago
 const resumenDia = async (req, res) => {
   try {
-    const fecha = req.query.fecha || new Date().toISOString().split('T')[0];
+    // Fecha de Lima (antes se usaba UTC y de noche tomaba el día siguiente)
+    const fecha = esFechaValida(req.query.fecha) ? req.query.fecha : hoyLima();
 
     const [ventas] = await db.query(`
       SELECT 
@@ -13,12 +15,13 @@ const resumenDia = async (req, res) => {
         SUM(CASE WHEN metodo_pago = 'efectivo' THEN total ELSE 0 END) AS efectivo,
         SUM(CASE WHEN metodo_pago = 'yape'     THEN total ELSE 0 END) AS yape
       FROM ventas
-      WHERE DATE(creado_en) = ? 
-    `, [fecha]);
+      WHERE creado_en >= ? AND creado_en < DATE_ADD(?, INTERVAL 1 DAY)
+    `, [fecha, fecha]);
 
     res.json(ventas[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'No se pudo generar el reporte' });
   }
 };
 
@@ -27,11 +30,12 @@ const resumenDia = async (req, res) => {
 // El rango se calcula terminando en la "fecha" indicada
 const productosMasVendidos = async (req, res) => {
   try {
-    const fecha = req.query.fecha || new Date().toISOString().split('T')[0];
+    // Fecha de Lima (antes se usaba UTC y de noche tomaba el día siguiente)
+    const fecha = esFechaValida(req.query.fecha) ? req.query.fecha : hoyLima();
     const periodo = req.query.periodo || 'diario';
 
-    let condicionFecha = 'DATE(v.creado_en) = ?';
-    let params = [fecha];
+    let condicionFecha = 'v.creado_en >= ? AND v.creado_en < DATE_ADD(?, INTERVAL 1 DAY)';
+    let params = [fecha, fecha];
 
     if (periodo === 'semanal') {
       condicionFecha = 'v.creado_en >= DATE_SUB(?, INTERVAL 6 DAY) AND v.creado_en < DATE_ADD(?, INTERVAL 1 DAY)';
@@ -63,7 +67,8 @@ const productosMasVendidos = async (req, res) => {
 
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'No se pudo generar el reporte' });
   }
 };
 
@@ -71,7 +76,7 @@ const productosMasVendidos = async (req, res) => {
 // Para el gráfico de barras del dashboard
 const ventasPorDia = async (req, res) => {
   try {
-    const mes = req.query.mes || new Date().toISOString().slice(0, 7);
+    const mes = /^\d{4}-\d{2}$/.test(req.query.mes || '') ? req.query.mes : hoyLima().slice(0, 7);
 
     const [rows] = await db.query(`
       SELECT 
@@ -86,7 +91,8 @@ const ventasPorDia = async (req, res) => {
 
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'No se pudo generar el reporte' });
   }
 };
 

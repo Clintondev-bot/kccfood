@@ -16,7 +16,8 @@ const listar = async (req, res) => {
     `);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Ocurrió un error con los clientes' });
   }
 };
 
@@ -27,7 +28,8 @@ const obtener = async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Cliente no encontrado' });
     res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Ocurrió un error con los clientes' });
   }
 };
 
@@ -38,20 +40,22 @@ const historialCompras = async (req, res) => {
     const [ventas] = await db.query(`
       SELECT v.*, u.nombre AS vendedor
       FROM ventas v
-      JOIN usuarios u ON v.usuario_id = u.id
+      LEFT JOIN usuarios u ON v.usuario_id = u.id
       WHERE v.cliente_id = ?
       ORDER BY v.creado_en DESC
     `, [req.params.id]);
     res.json(ventas);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Ocurrió un error con los clientes' });
   }
 };
 
 // POST /api/clientes
 const crear = async (req, res) => {
   try {
-    const { nombre, descripcion } = req.body;
+    const { descripcion } = req.body;
+    const nombre = (req.body.nombre || '').trim();
     if (!nombre) return res.status(400).json({ error: 'El nombre es requerido' });
 
     const [result] = await db.query(
@@ -60,14 +64,16 @@ const crear = async (req, res) => {
     );
     res.status(201).json({ id: result.insertId, nombre, descripcion });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Ocurrió un error con los clientes' });
   }
 };
 
 // PUT /api/clientes/:id
 const actualizar = async (req, res) => {
   try {
-    const { nombre, descripcion } = req.body;
+    const { descripcion } = req.body;
+    const nombre = (req.body.nombre || '').trim();
     if (!nombre) return res.status(400).json({ error: 'El nombre es requerido' });
 
     await db.query(
@@ -76,7 +82,8 @@ const actualizar = async (req, res) => {
     );
     res.json({ mensaje: 'Cliente actualizado' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Ocurrió un error con los clientes' });
   }
 };
 

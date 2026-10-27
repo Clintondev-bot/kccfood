@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const multer = require('multer');
 const path = require('path');
+const { aNumero } = require('../utils/helpers');
 
 // Multer en MEMORIA (no en disco): así la imagen nunca depende de archivos
 // físicos que se pierden en cada redeploy — se guarda directo en la BD.
@@ -9,7 +10,8 @@ const storage = multer.memoryStorage();
 // Solo aceptamos imágenes
 const fileFilter = (req, file, cb) => {
   const permitidos = /jpeg|jpg|png|webp/;
-  const esValido = permitidos.test(path.extname(file.originalname).toLowerCase());
+  const esValido = permitidos.test(path.extname(file.originalname).toLowerCase())
+    && /^image\//.test(file.mimetype);
   esValido ? cb(null, true) : cb(new Error('Solo se permiten imágenes'));
 };
 
@@ -32,7 +34,8 @@ const listar = async (req, res) => {
     `);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Ocurrió un error con los productos' });
   }
 };
 
@@ -42,7 +45,8 @@ const listarCategorias = async (req, res) => {
     const [rows] = await db.query('SELECT * FROM categorias ORDER BY nombre ASC');
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Ocurrió un error con los productos' });
   }
 };
 
@@ -57,7 +61,8 @@ const stockBajo = async (req, res) => {
     `);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Ocurrió un error con los productos' });
   }
 };
 
@@ -76,24 +81,45 @@ const obtenerImagen = async (req, res) => {
     res.set('Cache-Control', 'public, max-age=31536000'); // el navegador la cachea 1 año
     res.send(rows[0].imagen_datos);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Ocurrió un error con los productos' });
   }
+};
+
+// Lee y valida los campos del formulario de producto.
+// El formulario llega como FormData, así que todo viene como texto:
+// "" significa "vacío" (por ejemplo "Sin categoría").
+const leerFormulario = (body) => {
+  const datos = {
+    nombre:       (body.nombre || '').trim(),
+    categoria_id: aNumero(body.categoria_id, null),   // '' → NULL (antes daba error)
+    precio_costo: aNumero(body.precio_costo, 0),
+    precio_venta: aNumero(body.precio_venta, null),
+    stock:        aNumero(body.stock, null),
+    stock_minimo: aNumero(body.stock_minimo, 5),
+  };
+  if (!datos.nombre) return { error: 'El nombre es requerido' };
+  if (datos.precio_venta === null || Number.isNaN(datos.precio_venta) || datos.precio_venta < 0) {
+    return { error: 'El precio de venta no es válido' };
+  }
+  for (const campo of ['categoria_id', 'precio_costo', 'stock', 'stock_minimo']) {
+    if (Number.isNaN(datos[campo]) || datos[campo] < 0) return { error: `El campo ${campo.replace('_', ' ')} no es válido` };
+  }
+  if (datos.stock !== null && !Number.isInteger(datos.stock)) return { error: 'El stock debe ser un número entero' };
+  return { datos };
 };
 
 // POST /api/productos — crear producto con imagen opcional
 const crear = async (req, res) => {
   try {
-    const { nombre, categoria_id, precio_costo, precio_venta, stock, stock_minimo } = req.body;
-
-    if (!nombre || !precio_venta) {
-      return res.status(400).json({ error: 'Nombre y precio de venta son requeridos' });
-    }
+    const { datos, error } = leerFormulario(req.body);
+    if (error) return res.status(400).json({ error });
 
     const [result] = await db.query(
-      `INSERT INTO productos 
+      `INSERT INTO productos
         (nombre, categoria_id, precio_costo, precio_venta, stock, stock_minimo)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [nombre, categoria_id, precio_costo || 0, precio_venta, stock || 0, stock_minimo || 5]
+      [datos.nombre, datos.categoria_id, datos.precio_costo, datos.precio_venta, datos.stock ?? 0, datos.stock_minimo]
     );
     const id = result.insertId;
 
@@ -108,20 +134,29 @@ const crear = async (req, res) => {
 
     res.status(201).json({ id, mensaje: 'Producto creado correctamente' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'No se pudo crear el producto' });
   }
 };
 
 // PUT /api/productos/:id — editar producto
 const editar = async (req, res) => {
   try {
-    const { nombre, categoria_id, precio_costo, precio_venta, stock_minimo } = req.body;
+    const { datos, error } = leerFormulario(req.body);
+    if (error) return res.status(400).json({ error });
     const id = req.params.id;
 
     const campos = ['nombre = ?', 'categoria_id = ?', 'precio_costo = ?', 'precio_venta = ?', 'stock_minimo = ?'];
-    const valores = [nombre, categoria_id, precio_costo, precio_venta, stock_minimo];
+    const valores = [datos.nombre, datos.categoria_id, datos.precio_costo, datos.precio_venta, datos.stock_minimo];
 
-    // Si se sube una imagen nueva, la reemplazamos (ya no hay que borrar archivos del disco)
+    // Antes el campo "Stock" del formulario se ignoraba al editar:
+    // el usuario lo cambiaba, guardaba y el stock seguía igual.
+    if (datos.stock !== null) {
+      campos.push('stock = ?');
+      valores.push(datos.stock);
+    }
+
+    // Si se sube una imagen nueva, la reemplazamos
     if (req.file) {
       campos.push('imagen = ?', 'imagen_datos = ?', 'imagen_tipo = ?');
       valores.push(`/productos/${id}/imagen`, req.file.buffer, req.file.mimetype);
@@ -129,11 +164,13 @@ const editar = async (req, res) => {
 
     valores.push(id);
 
-    await db.query(`UPDATE productos SET ${campos.join(', ')} WHERE id = ?`, valores);
+    const [result] = await db.query(`UPDATE productos SET ${campos.join(', ')} WHERE id = ?`, valores);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Producto no encontrado' });
 
     res.json({ mensaje: 'Producto actualizado correctamente' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'No se pudo actualizar el producto' });
   }
 };
 
@@ -143,7 +180,8 @@ const eliminar = async (req, res) => {
     await db.query('UPDATE productos SET activo = FALSE WHERE id = ?', [req.params.id]);
     res.json({ mensaje: 'Producto eliminado correctamente' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Ocurrió un error con los productos' });
   }
 };
 

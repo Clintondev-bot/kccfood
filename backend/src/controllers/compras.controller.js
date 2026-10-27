@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { redondear, validarItems } = require('../utils/helpers');
 
 // GET /api/compras
 const listar = async (req, res) => {
@@ -6,12 +7,13 @@ const listar = async (req, res) => {
     const [rows] = await db.query(`
       SELECT c.*, u.nombre AS usuario
       FROM compras c
-      JOIN usuarios u ON c.usuario_id = u.id
+      LEFT JOIN usuarios u ON c.usuario_id = u.id
       ORDER BY c.creado_en DESC
     `);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'No se pudieron cargar las compras' });
   }
 };
 
@@ -32,25 +34,25 @@ const obtener = async (req, res) => {
 
     res.json({ ...compra[0], detalle });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'No se pudo cargar la compra' });
   }
 };
 
 // POST /api/compras — registrar compra y actualizar stock
 const crear = async (req, res) => {
-  const conn = await db.getConnection();
+  const { proveedor, nro_factura, items } = req.body;
+  // items = [{ producto_id, cantidad, precio_unit }, ...]
+
+  const errorItems = validarItems(items);
+  if (errorItems) return res.status(400).json({ error: errorItems });
+
+  const total = redondear(items.reduce((sum, i) => sum + Number(i.cantidad) * Number(i.precio_unit), 0));
+
+  let conn;
   try {
-    const { proveedor, nro_factura, items } = req.body;
-    // items = [{ producto_id, cantidad, precio_unit }, ...]
-
-    if (!items || items.length === 0) {
-      return res.status(400).json({ error: 'La compra debe tener al menos un producto' });
-    }
-
+    conn = await db.getConnection();
     await conn.beginTransaction();
-
-    // Calculamos el total
-    const total = items.reduce((sum, i) => sum + (i.cantidad * i.precio_unit), 0);
 
     // Guardamos la cabecera de la compra
     const [compra] = await conn.query(
@@ -62,27 +64,31 @@ const crear = async (req, res) => {
 
     // Guardamos el detalle y aumentamos stock
     for (const item of items) {
+      const cantidad = Number(item.cantidad);
+      const precio = Number(item.precio_unit);
+
+      const [upd] = await conn.query(
+        'UPDATE productos SET stock = stock + ? WHERE id = ?',
+        [cantidad, item.producto_id]
+      );
+      if (upd.affectedRows === 0) throw new Error('Uno de los productos ya no existe');
+
       await conn.query(
         `INSERT INTO detalle_compras (compra_id, producto_id, cantidad, precio_unit, subtotal)
          VALUES (?, ?, ?, ?, ?)`,
-        [compraId, item.producto_id, item.cantidad,
-         item.precio_unit, item.cantidad * item.precio_unit]
-      );
-
-      // Aumentamos el stock del producto
-      await conn.query(
-        'UPDATE productos SET stock = stock + ? WHERE id = ?',
-        [item.cantidad, item.producto_id]
+        [compraId, item.producto_id, cantidad, precio, redondear(cantidad * precio)]
       );
     }
 
     await conn.commit();
     res.status(201).json({ id: compraId, total, mensaje: 'Compra registrada correctamente' });
   } catch (err) {
-    await conn.rollback();
-    res.status(400).json({ error: err.message });
+    if (conn) await conn.rollback().catch(() => {});
+    console.error(err);
+    const mensaje = err.sqlMessage ? 'No se pudo registrar la compra' : err.message;
+    res.status(400).json({ error: mensaje });
   } finally {
-    conn.release();
+    if (conn) conn.release();
   }
 };
 
