@@ -21,6 +21,7 @@ const login = async (req, res) => {
 
     // Si no existe el usuario
     if (rows.length === 0) {
+      req.loginFallido?.();
       return res.status(401).json({ error: 'Email o contraseña incorrectos' });
     }
 
@@ -30,6 +31,7 @@ const login = async (req, res) => {
     // bcrypt hace esto de forma segura — nunca guardamos contraseñas en texto plano
     const passwordOk = await bcrypt.compare(password, usuario.password);
     if (!passwordOk) {
+      req.loginFallido?.();
       return res.status(401).json({ error: 'Email o contraseña incorrectos' });
     }
 
@@ -38,8 +40,9 @@ const login = async (req, res) => {
     const token = jwt.sign(
       { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES || '8h' }
+      { algorithm: 'HS256', expiresIn: process.env.JWT_EXPIRES || '8h' }
     );
+    req.loginExitoso?.(); // contraseña correcta: se borra el contador de fallos
 
     // Devolvemos el token y los datos básicos del usuario
     res.json({
