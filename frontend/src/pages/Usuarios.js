@@ -61,8 +61,12 @@ function Usuarios() {
   };
 
   const toggleActivo = async (id) => {
-    await api.put(`/usuarios/${id}/toggle`);
-    cargarDatos();
+    try {
+      await api.put(`/usuarios/${id}/toggle`);
+      cargarDatos();
+    } catch (err) {
+      alert(err.response?.data?.error || 'No se pudo cambiar el estado');
+    }
   };
 
   if (cargando) return <p style={{ padding: '20px' }}>Cargando...</p>;

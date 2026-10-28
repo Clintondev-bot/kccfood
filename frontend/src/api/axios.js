@@ -23,4 +23,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Si la sesión expiró (o el usuario fue desactivado), el backend responde 401.
+// Antes la app se quedaba "logueada" pero vacía; ahora vuelve al login.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const esLogin = error.config?.url?.includes('/auth/login');
+    if (error.response?.status === 401 && !esLogin && localStorage.getItem('token')) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('usuario');
+      window.location.reload();
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

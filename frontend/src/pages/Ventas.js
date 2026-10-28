@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import api, { API_BASE_URL } from '../api/axios';
-import { useAuth } from '../context/AuthContext';
+import { inicioDelDia, finDelDia } from '../utils/fechas';
 
 function Ventas() {
-  const { usuario } = useAuth();
   const [vista, setVista] = useState('lista');
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -50,21 +49,31 @@ function Ventas() {
     return () => clearInterval(intervalo);
   }, []);
 
-  useEffect(() => { cargarDatos(); }, []);
+  // Arma la URL de ventas con el rango de fechas elegido.
+  // Antes solo se traían las últimas 100 ventas y el filtro se hacía en el
+  // navegador: con más de 100 ventas, los totales por fecha salían incompletos.
+  const urlVentas = (desde, hasta) => {
+    const params = new URLSearchParams();
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    const qs = params.toString();
+    return qs ? `/ventas?${qs}` : '/ventas';
+  };
 
   const cargarDatos = async () => {
     try {
       const [p, c, v, cl] = await Promise.all([
         api.get('/productos'),
         api.get('/productos/categorias'),
-        api.get('/ventas'),
+        api.get(urlVentas(fechaDesde, fechaHasta)),
         api.get('/clientes'),
       ]);
       setProductos(p.data);
       setCategorias(c.data);
       setVentas(v.data);
       setClientes(cl.data);
-      const combosGuardados = JSON.parse(localStorage.getItem('combos') || '[]');
+      let combosGuardados = [];
+      try { combosGuardados = JSON.parse(localStorage.getItem('combos') || '[]'); } catch { /* datos corruptos */ }
       setCombos(combosGuardados);
     } catch (err) {
       console.error(err);
@@ -72,6 +81,18 @@ function Ventas() {
       setCargando(false);
     }
   };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { cargarDatos(); }, []);
+
+  // Cuando cambia el rango de fechas, pedimos las ventas de ese rango al servidor
+  useEffect(() => {
+    if (cargando) return;
+    api.get(urlVentas(fechaDesde, fechaHasta))
+      .then(({ data }) => setVentas(data))
+      .catch(err => console.error(err));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fechaDesde, fechaHasta]);
 
   const agregarAlCarrito = (producto) => {
     if (producto.stock === 0) return;
@@ -128,8 +149,14 @@ function Ventas() {
   const montoDescuento = calcularDescuento();
   const total = Math.max(0, subtotal - montoDescuento);
 
+  // El mensaje "Selecciona un cliente" desaparece en cuanto se elige uno
+  useEffect(() => {
+    if (clienteId) setMensaje(m => (m.includes('cliente') ? '' : m));
+  }, [clienteId]);
+
   const cobrar = async () => {
-    if (carrito.length === 0) return;
+    if (carrito.length === 0 || procesando) return;
+    setMensaje('');
     if (!clienteId) {
       setMensaje('❌ Selecciona un cliente antes de cobrar');
       return;
@@ -145,11 +172,15 @@ function Ventas() {
         precio_unit: parseFloat(i.precio_venta),
       }))];
 
+      // Cada producto del combo va en su propia línea con el precio del combo.
+      // ANTES: si el mismo producto ya estaba suelto en el carrito, las unidades
+      // del combo se sumaban a esa línea con el precio NORMAL, así que la venta
+      // se guardaba por más dinero del que se cobró en caja.
       itemsCombos.forEach(combo => {
         const totalItems = combo.comboItems.reduce((s, i) => s + i.cantidad, 0);
         const precioPorItem = parseFloat(combo.precio_venta) / totalItems;
         combo.comboItems.forEach(item => {
-          const existente = itemsExpandidos.find(i => i.producto_id === item.producto_id);
+          const existente = itemsExpandidos.find(i => i.producto_id === item.producto_id && i.deCombo === combo.id);
           if (existente) {
             existente.cantidad += item.cantidad * combo.cantidad;
           } else {
@@ -157,6 +188,7 @@ function Ventas() {
               producto_id: item.producto_id,
               cantidad: item.cantidad * combo.cantidad,
               precio_unit: precioPorItem,
+              deCombo: combo.id,
             });
           }
         });
@@ -167,7 +199,7 @@ function Ventas() {
         descuento: parseFloat(descuento) || 0,
         tipo_descuento: tipoDescuento,
         cliente_id: parseInt(clienteId),
-        items: itemsExpandidos,
+        items: itemsExpandidos.map(({ deCombo, ...item }) => item),
       });
       setCarrito([]);
       setObservacion('');
@@ -194,8 +226,8 @@ function Ventas() {
 
   const ventasFiltradas = ventas.filter(v => {
     const fechaVenta = new Date(v.creado_en);
-    const desde = fechaDesde ? new Date(fechaDesde) : null;
-    const hasta = fechaHasta ? new Date(fechaHasta + 'T23:59:59') : null;
+    const desde = fechaDesde ? inicioDelDia(fechaDesde) : null;
+    const hasta = fechaHasta ? finDelDia(fechaHasta) : null;
     const coincideBusqueda = !busquedaVentas ||
       v.vendedor?.toLowerCase().includes(busquedaVentas.toLowerCase()) ||
       v.cliente?.toLowerCase().includes(busquedaVentas.toLowerCase()) ||
