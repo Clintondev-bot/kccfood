@@ -2,6 +2,7 @@ const db = require('../config/db');
 const multer = require('multer');
 const path = require('path');
 const { aNumero } = require('../utils/helpers');
+const { detectarTipoImagen, TIPOS_PERMITIDOS } = require('../utils/imagenes');
 
 // Multer en MEMORIA (no en disco): así la imagen nunca depende de archivos
 // físicos que se pierden en cada redeploy — se guarda directo en la BD.
@@ -77,8 +78,18 @@ const obtenerImagen = async (req, res) => {
     if (!rows.length || !rows[0].imagen_datos) {
       return res.status(404).send('Imagen no encontrada');
     }
-    res.set('Content-Type', rows[0].imagen_tipo || 'image/png');
-    res.set('Cache-Control', 'public, max-age=31536000'); // el navegador la cachea 1 año
+    // V-03: solo servimos como imagen los tipos seguros, y con cabeceras que
+    // impiden que el navegador ejecute código aunque el archivo lo tuviera.
+    const tipo = detectarTipoImagen(rows[0].imagen_datos);
+    if (!tipo || !TIPOS_PERMITIDOS.includes(tipo)) {
+      return res.status(415).send('Formato de imagen no permitido');
+    }
+    res.set({
+      'Content-Type': tipo,
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; sandbox",
+      'Cache-Control': 'public, max-age=31536000', // el navegador la cachea 1 año
+    });
     res.send(rows[0].imagen_datos);
   } catch (err) {
     console.error(err);
@@ -115,6 +126,12 @@ const crear = async (req, res) => {
     const { datos, error } = leerFormulario(req.body);
     if (error) return res.status(400).json({ error });
 
+    // V-03: revisamos el contenido real del archivo, no su nombre
+    const tipoImagen = req.file ? detectarTipoImagen(req.file.buffer) : null;
+    if (req.file && !tipoImagen) {
+      return res.status(400).json({ error: 'El archivo no es una imagen JPG, PNG o WEBP válida' });
+    }
+
     const [result] = await db.query(
       `INSERT INTO productos
         (nombre, categoria_id, precio_costo, precio_venta, stock, stock_minimo)
@@ -128,7 +145,7 @@ const crear = async (req, res) => {
       const rutaImagen = `/productos/${id}/imagen`;
       await db.query(
         'UPDATE productos SET imagen = ?, imagen_datos = ?, imagen_tipo = ? WHERE id = ?',
-        [rutaImagen, req.file.buffer, req.file.mimetype, id]
+        [rutaImagen, req.file.buffer, tipoImagen, id]
       );
     }
 
@@ -144,6 +161,12 @@ const editar = async (req, res) => {
   try {
     const { datos, error } = leerFormulario(req.body);
     if (error) return res.status(400).json({ error });
+
+    // V-03: revisamos el contenido real del archivo, no su nombre
+    const tipoImagen = req.file ? detectarTipoImagen(req.file.buffer) : null;
+    if (req.file && !tipoImagen) {
+      return res.status(400).json({ error: 'El archivo no es una imagen JPG, PNG o WEBP válida' });
+    }
     const id = req.params.id;
 
     const campos = ['nombre = ?', 'categoria_id = ?', 'precio_costo = ?', 'precio_venta = ?', 'stock_minimo = ?'];
@@ -159,7 +182,7 @@ const editar = async (req, res) => {
     // Si se sube una imagen nueva, la reemplazamos
     if (req.file) {
       campos.push('imagen = ?', 'imagen_datos = ?', 'imagen_tipo = ?');
-      valores.push(`/productos/${id}/imagen`, req.file.buffer, req.file.mimetype);
+      valores.push(`/productos/${id}/imagen`, req.file.buffer, tipoImagen);
     }
 
     valores.push(id);

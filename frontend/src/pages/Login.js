@@ -20,8 +20,15 @@ function Login() {
     setCargando(true);
     try {
       await login(email, password);
-    } catch {
-      setError('Email o contraseña incorrectos');
+    } catch (err) {
+      // 429 = demasiados intentos fallidos: mostramos cuánto esperar
+      if (err.response?.status === 429) {
+        setError(err.response.data?.error || 'Demasiados intentos. Espera unos minutos.');
+      } else if (!err.response) {
+        setError('No se pudo conectar con el servidor');
+      } else {
+        setError('Email o contraseña incorrectos');
+      }
     } finally {
       setCargando(false);
     }

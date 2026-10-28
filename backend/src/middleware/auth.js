@@ -16,7 +16,8 @@ const verificarToken = async (req, res, next) => {
   let usuario;
   try {
     // Verificamos que el token sea válido y no haya expirado
-    usuario = jwt.verify(token, process.env.JWT_SECRET);
+    // Solo aceptamos el algoritmo con el que firmamos (V-07)
+    usuario = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
   } catch (err) {
     // 401 (no 403) para que el frontend sepa que debe volver al login
     return res.status(401).json({ error: 'Sesión inválida o expirada' });
